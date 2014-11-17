@@ -160,6 +160,7 @@ map <F12> :python debugger_watch_input("property_get", '<cword>')<cr>A<cr>
 hi DbgCurrent term=reverse ctermfg=White ctermbg=Red gui=reverse
 hi DbgBreakPt term=reverse ctermfg=White ctermbg=Green gui=reverse
 
+command! -nargs=1 Bpfn python debugger_break_on_function('<args>')
 command! -nargs=? Bp python debugger_mark('<args>')
 command! -nargs=0 Up python debugger_up()
 command! -nargs=0 Dn python debugger_down()

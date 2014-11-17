@@ -673,7 +673,12 @@ class BreakPoint:
   def add(self, file, line, exp = ''):
     """ add break point at file:line """
     self.maxbno = self.maxbno + 1
-    self.breakpt[self.maxbno] = { 'file':file, 'line':line, 'exp':exp, 'id':None }
+    self.breakpt[self.maxbno] = { 'function':None, 'file':file, 'line':line, 'exp':exp, 'id':None }
+    return self.maxbno
+  def add_function(self, fname):
+    """ add a breakpoint for the given function """
+    self.maxbno = self.maxbno + 1
+    self.breakpt[self.maxbno] = { 'function':fname, 'file':None, 'line':None, 'exp':None, 'id':None }
     return self.maxbno
   def remove(self, bno):
     """ remove break point numbered with bno """
@@ -682,6 +687,12 @@ class BreakPoint:
     """ find break point and return bno(breakpoint number) """
     for bno in self.breakpt.keys():
       if self.breakpt[bno]['file'] == file and self.breakpt[bno]['line'] == line:
+        return bno
+    return None
+  def findbyfunction(self, fname):
+    """ find break point by function name and return bno(breakpoint number) """
+    for bno in self.breakpt.keys():
+      if self.breakpt[bno]['function'] == fname:
         return bno
     return None
   def getfile(self, bno):
@@ -693,6 +704,9 @@ class BreakPoint:
   def getexp(self, bno):
     """ get expression of breakpoint numbered with bno """
     return self.breakpt[bno]['exp']
+  def getfunction(self, bno):
+    """ get the name of the function that this breakpoint breaks on """
+    return self.breakpt[bno]['function']
   def getid(self, bno):
     """ get Debug Server's breakpoint numbered with bno """
     return self.breakpt[bno]['id']
@@ -1013,9 +1027,14 @@ class Debugger:
 
       flag = 0
       for bno in self.breakpt.list():
-        msgid = self.send_command('breakpoint_set', \
-                                  '-t line -f ' + self.breakpt.getfile(bno) + ' -n ' + str(self.breakpt.getline(bno)) + ' -s enabled', \
-                                  self.breakpt.getexp(bno))
+        cmd = 'breakpoint_set'
+        if self.breakpt.getline(bno):
+          cmd = cmd + ' -t line -f ' + self.breakpt.getfile(bno)
+          cmd = cmd + ' -n ' + str(self.breakpt.getline(bno)) + ' -s enabled'
+          cmd = cmd + self.breakpt.getexp(bno)
+        elif self.breakpoint.getfunction(bno):
+          cmd = cmd + ' -t call -m ' + self.breakpt.getfunction(bno)
+        msgid = self.send_command(cmd)
         self.bptsetlst[msgid] = bno
         flag = 1
       if flag:
@@ -1066,6 +1085,19 @@ class Debugger:
                                   self.breakpt.getexp(bno))
         self.bptsetlst[msgid] = bno
         self.recv()
+
+  def break_on_function(self, fname):
+     bno = self.breakpt.findbyfunction(fname)
+     if bno != None:
+        id = self.breakpt.getid(bno)
+        self.breakpt.remove(bno)
+        print "removed breakpoint for function '" + fname + "'"
+     else:
+        bno = self.breakpt.add_function(fname)
+        msgid = self.send_command('breakpoint_set', '-t call -m ' + self.breakpt.getfunction(bno))
+        self.bptsetlst[msgid] = bno
+        self.recv()
+        print "added breakpoint for function '" + fname + "'"
 
   def watch_input(self, mode, arg = ''):
     self.ui.watchwin.input(mode, arg)
@@ -1168,6 +1200,12 @@ def debugger_watch_input(cmd, arg = ''):
     if arg == '<cword>':
       arg = vim.eval('expand("<cword>")')
     debugger.watch_input(cmd, arg)
+  except:
+    connection_closed(sys.exc_info())
+
+def debugger_break_on_function(fname):
+  try:
+    debugger.break_on_function(fname)
   except:
     connection_closed(sys.exc_info())
 
